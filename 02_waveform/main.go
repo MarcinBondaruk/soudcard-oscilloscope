@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"image/color"
 	"log/slog"
 	"time"
@@ -18,7 +17,7 @@ const (
 )
 
 type Game struct {
-	samples []float32
+	canvas *ebiten.Image
 }
 
 func (g *Game) Update() error {
@@ -26,21 +25,8 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	screen.Fill(color.Black)
-
-	centerY := float32(windowHeight / 2.0)
-	stepX := windowWidth / float32(len(g.samples)-1)
-
-	for i := range len(g.samples) - 1 {
-		x0 := float32(i) * stepX
-		y0 := g.samples[i]*centerY + centerY
-
-		x1 := float32(i) * stepX
-		y1 := g.samples[i+1]*centerY + centerY
-		vector.StrokeLine(screen, x0, y0, x1, y1, 1.0, color.RGBA{90, 252, 3, 1}, true)
-	}
-
-	fmt.Println("dupa")
+	opts := &ebiten.DrawImageOptions{}
+	screen.DrawImage(g.canvas, opts)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -92,14 +78,61 @@ func RecordWaveform(sampleRate int, recordingDuration time.Duration) ([]float32,
 	return inputBuffer, nil
 }
 
-func DisplayWaveform(samples []float32) error {
+func NewGame(samples []float32) (*Game, error) {
+	if len(samples) < 2 {
+		return nil, errors.New("there must be at least 2 samples")
+	}
+
+	canvas := ebiten.NewImage(windowWidth, windowHeight)
+
+	canvas.Fill(color.Black)
+
+	centerY := float32(windowHeight / 2.0)
+	step := len(samples) / windowWidth
+
+	for i := 0; i < windowWidth; i++ {
+		startX := i * step
+		endX := startX + step
+
+		if endX > len(samples) {
+			endX = len(samples)
+		}
+
+		minY := float32(0.0)
+		maxY := float32(0.0)
+
+		for j := startX; j < endX; j++ {
+			if minY > samples[j] {
+				minY = samples[j]
+			}
+
+			if maxY < samples[j] {
+				maxY = samples[j]
+			}
+		}
+
+		minY = minY*centerY + centerY
+		maxY = maxY*centerY + centerY
+
+		vector.StrokeLine(canvas, float32(i), minY, float32(i), maxY, 2.0, color.RGBA{245, 40, 145, 255}, false)
+	}
+
 	game := &Game{
-		samples: samples,
+		canvas: canvas,
+	}
+
+	return game, nil
+}
+
+func DisplayWaveform(samples []float32) error {
+	game, err := NewGame(samples)
+	if err != nil {
+		return err
 	}
 	ebiten.SetWindowSize(windowWidth, windowHeight)
 	ebiten.SetWindowTitle("waveform")
 
-	err := ebiten.RunGame(game)
+	err = ebiten.RunGame(game)
 	if err != nil {
 		return errors.Join(errors.New("error running ebitengine"), err)
 	}
