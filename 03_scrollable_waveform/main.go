@@ -19,7 +19,7 @@ const (
 type Game struct {
 	canvas         *ebiten.Image
 	samples        []float32
-	zoom           uint
+	zoom           int
 	scrollPosition int
 }
 
@@ -50,6 +50,33 @@ func MinMaxRange(start, end int, samples []float32) (float32, float32) {
 	}
 
 	return min, max
+}
+
+func (g *Game) CalculateCanvas() {
+	canvas := ebiten.NewImage(windowWidth, windowHeight)
+
+	canvas.Fill(color.Black)
+
+	centerY := float32(windowHeight / 2.0)
+	step := len(g.samples) / windowWidth * g.zoom
+
+	for i := 0; i < windowWidth; i++ {
+		start := i * step
+		end := start + step
+
+		if end > len(g.samples) {
+			end = len(g.samples)
+		}
+
+		min, max := MinMaxRange(start, end, g.samples)
+
+		min = min*centerY + centerY
+		max = max*centerY + centerY
+
+		vector.StrokeLine(canvas, float32(i), min, float32(i), max, 2.0, color.RGBA{245, 40, 145, 255}, false)
+	}
+
+	g.canvas = canvas
 }
 
 func RecordWaveform(sampleRate int, recordingDuration time.Duration) ([]float32, error) {
@@ -102,35 +129,14 @@ func NewGame(samples []float32) (*Game, error) {
 		return nil, errors.New("there must be at least 2 samples")
 	}
 
-	canvas := ebiten.NewImage(windowWidth, windowHeight)
-
-	canvas.Fill(color.Black)
-
-	centerY := float32(windowHeight / 2.0)
-	step := len(samples) / windowWidth
-
-	for i := 0; i < windowWidth; i++ {
-		startX := i * step
-		endX := startX + step
-
-		if endX > len(samples) {
-			endX = len(samples)
-		}
-
-		minY, maxY := MinMaxRange(startX, endX, samples)
-
-		minY = minY*centerY + centerY
-		maxY = maxY*centerY + centerY
-
-		vector.StrokeLine(canvas, float32(i), minY, float32(i), maxY, 2.0, color.RGBA{245, 40, 145, 255}, false)
-	}
-
 	game := &Game{
-		canvas:         canvas,
+		canvas:         nil,
 		samples:        samples,
-		zoom:           0,
+		zoom:           1,
 		scrollPosition: 0,
 	}
+
+	game.CalculateCanvas()
 
 	return game, nil
 }
