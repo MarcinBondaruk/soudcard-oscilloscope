@@ -17,31 +17,71 @@ const (
 	windowHeight = 800
 )
 
-type Game struct {
-	canvas         *ebiten.Image
-	samples        []float32
+type Peak struct {
+	min float32
+	max float32
+}
+
+type Viewport struct {
 	zoom           int
 	scrollPosition int
+	scrollSpeed    int
+	peaks          []Peak
+}
+
+type Game struct {
+	canvas   *ebiten.Image
+	samples  []float32
+	viewport *Viewport
 }
 
 func (g *Game) Update() error {
-	changed := false
+	zoomChanged := false
+	scrollChanged := false
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
-		if g.zoom < 16 {
-			g.zoom *= 2
-			changed = true
+		if g.viewport.zoom < 32 {
+			g.viewport.zoom *= 2
+			g.viewport.scrollPosition *= 2
+			zoomChanged = true
 		}
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
-		if g.zoom > 1 {
-			g.zoom /= 2
-			changed = true
+		if g.viewport.zoom > 1 {
+			g.viewport.zoom /= 2
+			g.viewport.scrollPosition /= 2
+			zoomChanged = true
 		}
 	}
 
-	if changed {
+	if ebiten.IsKeyPressed(ebiten.KeyArrowRight) {
+		maxScroll := (windowWidth * g.viewport.zoom) - windowWidth
+		if g.viewport.scrollPosition < maxScroll {
+			g.viewport.scrollPosition += g.viewport.scrollSpeed
+			if g.viewport.scrollPosition > maxScroll {
+				g.viewport.scrollPosition = maxScroll
+			}
+
+			scrollChanged = true
+		}
+	}
+
+	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
+		if g.viewport.scrollPosition > 0 {
+			g.viewport.scrollPosition -= g.viewport.scrollSpeed
+			if g.viewport.scrollPosition < 0 {
+				g.viewport.scrollPosition = 0
+			}
+
+			scrollChanged = true
+		}
+	}
+
+	if zoomChanged {
+		g.CalculatePeaks()
+		g.CalculateCanvas()
+	} else if scrollChanged {
 		g.CalculateCanvas()
 	}
 
@@ -73,28 +113,46 @@ func MinMaxRange(start, end int, samples []float32) (float32, float32) {
 	return min, max
 }
 
-func (g *Game) CalculateCanvas() {
-	canvas := ebiten.NewImage(windowWidth, windowHeight)
+func (g *Game) CalculatePeaks() {
+	totalPixels := windowWidth * g.viewport.zoom
+	g.viewport.peaks = make([]Peak, totalPixels)
 
-	canvas.Fill(color.Black)
-
-	centerY := float32(windowHeight / 2.0)
-	step := len(g.samples) / (windowWidth * g.zoom)
-
-	for i := 0; i < windowWidth; i++ {
+	step := len(g.samples) / totalPixels
+	for i := 0; i < totalPixels; i++ {
 		start := i * step
-		end := start + step
+		end := (i + 1) * step
 
 		if end > len(g.samples) {
 			end = len(g.samples)
 		}
 
+		if start >= end {
+			break
+		}
+
 		min, max := MinMaxRange(start, end, g.samples)
 
-		min = min*centerY + centerY
-		max = max*centerY + centerY
+		g.viewport.peaks[i] = Peak{min, max}
+	}
+}
 
-		vector.StrokeLine(canvas, float32(i), min, float32(i), max, 2.0, color.RGBA{245, 40, 145, 255}, false)
+func (g *Game) CalculateCanvas() {
+	canvas := ebiten.NewImage(windowWidth, windowHeight)
+	canvas.Fill(color.Black)
+
+	centerY := float32(windowHeight / 2.0)
+
+	for i := 0; i < windowWidth; i++ {
+		position := g.viewport.scrollPosition + i
+
+		if position >= len(g.viewport.peaks) {
+			break
+		}
+
+		min := g.viewport.peaks[position].min*centerY + centerY
+		max := g.viewport.peaks[position].max*centerY + centerY
+
+		vector.StrokeLine(canvas, float32(i), min, float32(i), max, 1.0, color.RGBA{245, 40, 145, 255}, false)
 	}
 
 	g.canvas = canvas
@@ -150,13 +208,19 @@ func NewGame(samples []float32) (*Game, error) {
 		return nil, errors.New("there must be at least 2 samples")
 	}
 
-	game := &Game{
-		canvas:         nil,
-		samples:        samples,
+	viewport := &Viewport{
 		zoom:           1,
 		scrollPosition: 0,
+		scrollSpeed:    50,
+		peaks:          nil,
+	}
+	game := &Game{
+		canvas:   nil,
+		samples:  samples,
+		viewport: viewport,
 	}
 
+	game.CalculatePeaks()
 	game.CalculateCanvas()
 
 	return game, nil
