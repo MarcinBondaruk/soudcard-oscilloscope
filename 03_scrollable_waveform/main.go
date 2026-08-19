@@ -8,6 +8,7 @@ import (
 
 	"github.com/gordonklaus/portaudio"
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -24,6 +25,26 @@ type Game struct {
 }
 
 func (g *Game) Update() error {
+	changed := false
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
+		if g.zoom < 16 {
+			g.zoom *= 2
+			changed = true
+		}
+	}
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
+		if g.zoom > 1 {
+			g.zoom /= 2
+			changed = true
+		}
+	}
+
+	if changed {
+		g.CalculateCanvas()
+	}
+
 	return nil
 }
 
@@ -58,7 +79,7 @@ func (g *Game) CalculateCanvas() {
 	canvas.Fill(color.Black)
 
 	centerY := float32(windowHeight / 2.0)
-	step := len(g.samples) / windowWidth * g.zoom
+	step := len(g.samples) / (windowWidth * g.zoom)
 
 	for i := 0; i < windowWidth; i++ {
 		start := i * step
