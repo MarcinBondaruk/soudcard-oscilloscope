@@ -2,12 +2,14 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"image/color"
 	"log/slog"
 	"time"
 
 	"github.com/gordonklaus/portaudio"
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
@@ -80,9 +82,9 @@ func (g *Game) Update() error {
 
 	if zoomChanged {
 		g.CalculatePeaks()
-		g.CalculateCanvas()
+		g.FillCanvas()
 	} else if scrollChanged {
-		g.CalculateCanvas()
+		g.FillCanvas()
 	}
 
 	return nil
@@ -136,12 +138,39 @@ func (g *Game) CalculatePeaks() {
 	}
 }
 
-func (g *Game) CalculateCanvas() {
-	canvas := ebiten.NewImage(windowWidth, windowHeight)
-	canvas.Fill(color.Black)
+func (g *Game) generateHorizontalAxis() {
+	totalSeconds := float64(len(g.samples)) / float64(48000)
+	pixelsPerSecond := float64(windowWidth*g.viewport.zoom) / totalSeconds
 
-	centerY := float32(windowHeight / 2.0)
+	gridStep := 1.0
+	if g.viewport.zoom > 4 {
+		gridStep = 0.5
+	}
+	if g.viewport.zoom > 16 {
+		gridStep = 0.1
+	}
 
+	for s := 0.0; s <= totalSeconds; s += gridStep {
+		x := float32(s*pixelsPerSecond) - float32(g.viewport.scrollPosition)
+		if x >= 0 && x <= windowWidth {
+			vector.StrokeLine(g.canvas, x, 0, x, windowHeight, 1.0, color.RGBA{50, 50, 50, 255}, false)
+			ebitenutil.DebugPrintAt(g.canvas, fmt.Sprintf("%.1fs", s), int(x)+5, 10)
+		}
+	}
+}
+
+func (g *Game) generateVertialAxis(midPosition float32) {
+	magnitudes := []float32{-1.0, -0.5, 0.0, 0.5, 1.0}
+	for _, mag := range magnitudes {
+		y := midPosition - (mag * midPosition)
+
+		vector.StrokeLine(g.canvas, 0, y, float32(windowWidth), y, 1.0, color.RGBA{50, 50, 50, 255}, false)
+
+		ebitenutil.DebugPrintAt(g.canvas, fmt.Sprintf("%.1f", mag), 5, int(y)-15)
+	}
+}
+
+func (g *Game) generateWaveform(midPosition float32) {
 	for i := 0; i < windowWidth; i++ {
 		position := g.viewport.scrollPosition + i
 
@@ -149,13 +178,20 @@ func (g *Game) CalculateCanvas() {
 			break
 		}
 
-		min := g.viewport.peaks[position].min*centerY + centerY
-		max := g.viewport.peaks[position].max*centerY + centerY
+		min := g.viewport.peaks[position].min*midPosition + midPosition
+		max := g.viewport.peaks[position].max*midPosition + midPosition
 
-		vector.StrokeLine(canvas, float32(i), min, float32(i), max, 1.0, color.RGBA{245, 40, 145, 255}, false)
+		vector.StrokeLine(g.canvas, float32(i), min, float32(i), max, 1.0, color.RGBA{245, 40, 145, 255}, false)
 	}
+}
 
-	g.canvas = canvas
+func (g *Game) FillCanvas() {
+	centerY := float32(windowHeight / 2.0)
+
+	g.canvas.Fill(color.Black)
+	g.generateHorizontalAxis()
+	g.generateVertialAxis(centerY)
+	g.generateWaveform(centerY)
 }
 
 func RecordWaveform(sampleRate int, recordingDuration time.Duration) ([]float32, error) {
@@ -208,6 +244,8 @@ func NewGame(samples []float32) (*Game, error) {
 		return nil, errors.New("there must be at least 2 samples")
 	}
 
+	canvas := ebiten.NewImage(windowWidth, windowHeight)
+
 	viewport := &Viewport{
 		zoom:           1,
 		scrollPosition: 0,
@@ -215,13 +253,13 @@ func NewGame(samples []float32) (*Game, error) {
 		peaks:          nil,
 	}
 	game := &Game{
-		canvas:   nil,
+		canvas:   canvas,
 		samples:  samples,
 		viewport: viewport,
 	}
 
 	game.CalculatePeaks()
-	game.CalculateCanvas()
+	game.FillCanvas()
 
 	return game, nil
 }
