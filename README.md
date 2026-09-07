@@ -14,13 +14,16 @@ sudo apt install golang portaudio19-dev
 
 ### Windows
 
+> **Note:** Linux is the recommended development environment. The Windows build path below has not been tested on all Windows versions.
+
+The PortAudio Go binding uses CGo, so a C compiler and the PortAudio library are required at build time. The easiest way to get both on Windows is through [MSYS2](https://www.msys2.org/):
+
 1. Install [Go](https://go.dev/dl/)
-2. Install [MSYS2](https://www.msys2.org/)
-3. In the MSYS2 MinGW64 terminal install the C toolchain and PortAudio:
-   ```bash
+2. Install [MSYS2](https://www.msys2.org/) and run in the MinGW64 terminal:
+   ```
    pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-portaudio
    ```
-4. Add `C:\msys64\mingw64\bin` to the system `PATH`
+3. Add `C:\msys64\mingw64\bin` to the system `PATH` so that `go build` can find `gcc` and the PortAudio library
 
 ### Building & running
 
