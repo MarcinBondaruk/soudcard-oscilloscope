@@ -1,3 +1,41 @@
+## Prerequisites
+
+### Linux (Arch / Manjaro)
+
+```bash
+sudo pacman -S go portaudio
+```
+
+On Debian/Ubuntu:
+
+```bash
+sudo apt install golang portaudio19-dev
+```
+
+### Windows
+
+1. Install [Go](https://go.dev/dl/)
+2. Install [MSYS2](https://www.msys2.org/)
+3. In the MSYS2 MinGW64 terminal install the C toolchain and PortAudio:
+   ```bash
+   pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-portaudio
+   ```
+4. Add `C:\msys64\mingw64\bin` to the system `PATH`
+
+### Building & running
+
+```bash
+go run ./06_signal_generator   # or any other numbered directory
+```
+
+To produce a standalone binary:
+
+```bash
+go build -o oscilloscope ./06_signal_generator
+```
+
+On Windows the resulting `.exe` needs `libportaudio.dll` next to it (copy it from `C:\msys64\mingw64\bin\`).
+
 ## About
 
 This repository contains all the code related to the series of short articles about building a simple *oscilloscope* with Go, PortAudio and Ebitengine posted on my website [bendit.dev](https://bendit.dev)
